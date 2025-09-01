@@ -186,7 +186,7 @@ static void Sounds_Play(cc_uint8 type, struct Soundboard* board) {
 	Sounds_PlayAdvanced(type, board, volume, rate);
 }
 
-void Sounds_PlayAdvanced(cc_uint8 type, struct Soundboard* board, cc_uint32 volume, cc_uint32 rate) {
+void Sounds_PlayAdvanced(cc_uint8 type, struct Soundboard* board, cc_uint32 volume, cc_int32 rate) {
 
 	const struct Sound* snd;
 	struct AudioData data;
@@ -543,3 +543,4 @@ struct IGameComponent Audio_Component = {
 	OnInit, /* Init  */
 	OnFree  /* Free  */
 };
+
