@@ -9,6 +9,7 @@ CC_BEGIN_HEADER
 struct IGameComponent;
 extern struct IGameComponent Audio_Component; 
 struct AudioContext;
+struct Soundboard;
 
 #ifdef CC_BUILD_WEBAUDIO
 	#define DEFAULT_SOUNDS_VOLUME   0
@@ -141,3 +142,4 @@ void Sounds_LoadDefault(void);
 
 CC_END_HEADER
 #endif
+
