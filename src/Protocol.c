@@ -1663,7 +1663,7 @@ static void CPE_PlaySound(cc_uint8* data)
 	CPE_PlaySoundBase(channel, volume , rate, id);
 }
 
-static void CPE_PlaySound3D(cc_int8* data)
+static void CPE_PlaySound3D(cc_uint8* data)
 {
 	cc_uint8 channel = data[0]; // 0 = dig sounds, 1 = step sounds
 	cc_uint8 volume = data[1]; // 0 - 255
@@ -2072,3 +2072,4 @@ struct IGameComponent Protocol_Component = {
 	NULL,    /* Free  */
 	OnReset, /* Reset */
 };
+
