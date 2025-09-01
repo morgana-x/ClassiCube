@@ -39,6 +39,7 @@
 #include "Protocol.h"
 /* SOUNDPACK: include + forward declarations */
 #include "SoundPack.h"
+    /* for Gui_Remove / Screen_Free */
 
 #ifdef CC_BUILD_SOUNDPACK
 void SoundPackOverlay_Show(const cc_string* url);
@@ -3110,7 +3111,9 @@ static void SoundPackOverlay_Init(void* screen) {
     s->contentLength = 0;
     s->gotContent    = false;
     s->deny          = false;
+    s->reqID         = 0; /* initialised so free/update logic is safe */
     Overlay_AddLabels(s, s->lbls);
+
 
     ButtonWidget_Add(s, &s->btns[0], 160, NULL);
     ButtonWidget_Add(s, &s->btns[1], 160, NULL);
@@ -3121,11 +3124,22 @@ static void SoundPackOverlay_Init(void* screen) {
 }
 
 static void SoundPackOverlay_Free(void* screen) {
-    /* if you need to cancel an in-progress download request, cancel here */
     struct SoundPackOverlay* s = (struct SoundPackOverlay*)screen;
-    if (s->reqID) Http_CancelRequest(s->reqID);
-    Screen_Free(screen);
+
+    /* There's no Http_CancelRequest / Screen_Free in this repo's headers,
+       so we avoid calling them to prevent implicit-declaration errors.
+       
+       If you want to cancel an in-progress HTTP request, implement
+       Http_CancelRequest(reqID) in the Http subsystem (preferred), or
+       keep a flag and ignore late results when the screen is freed.
+    */
+
+    /* Mark request ID as cleared so Update() will ignore any results. */
+    s->reqID = 0;
+
+    /* The GUI framework will free the screen memory; don't call Screen_Free here. */
 }
+
 
 static const struct ScreenVTABLE SoundPackOverlay_VTABLE = {
     SoundPackOverlay_Init,    SoundPackOverlay_Update,  SoundPackOverlay_Free,
@@ -3144,8 +3158,15 @@ void SoundPackOverlay_Show(const cc_string* url) {
 
     String_InitArray(s->url, s->_urlBuffer);
     String_Copy(&s->url, url);
+
+    /* Ask HTTP subsystem for headers so Update() can report size (same as texture prompt) */
+    s->reqID = Http_AsyncGetHeaders(url, HTTP_FLAG_PRIORITY);
+
+    /* TODO: if you want sound prompt to appear with a different priority,
+       change GUI_PRIORITY_URLWARNING -> GUI_PRIORITY_SOUNDPACK (if you add it). */
     Gui_Add((struct Screen*)s, GUI_PRIORITY_URLWARNING);
 }
+
 
 
 /*########################################################################################################################*
