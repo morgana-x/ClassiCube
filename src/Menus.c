@@ -37,16 +37,6 @@
 #include "Lighting.h"
 #include "InputHandler.h"
 #include "Protocol.h"
-/* SOUNDPACK: include + forward declarations */
-#include "SoundPack.h"
-    /* for Gui_Remove / Screen_Free */
-
-#ifdef CC_BUILD_SOUNDPACK
-void SoundPackOverlay_Show(const cc_string* url);
-void SoundPack_Extract(const cc_string* url);
-void SoundUrls_Accept(const cc_string* url);
-void SoundUrls_Deny(const cc_string* url);
-#endif
 
 /*########################################################################################################################*
 *--------------------------------------------------------Menu base--------------------------------------------------------*
@@ -2772,30 +2762,14 @@ static cc_bool TexPackOverlay_IsAlways(void* screen, void* w) {
 }
 
 static void TexPackOverlay_YesClick(void* screen, void* widget) {
-    struct TexPackOverlay* s = (struct TexPackOverlay*)screen;
+	struct TexPackOverlay* s = (struct TexPackOverlay*)screen;
+	TexturePack_Extract(&s->url);
+	if (TexPackOverlay_IsAlways(s, widget)) TextureUrls_Accept(&s->url);
+	Gui_Remove((struct Screen*)s);
 
-    /* --- existing texture behaviour (kept) --- */
-    TexturePack_Extract(&s->url);
-    if (TexPackOverlay_IsAlways(s, widget)) TextureUrls_Accept(&s->url);
-
-    /* close texture prompt */
-    Gui_Remove((struct Screen*)s);
-
-    /* keep existing CPE notify behaviour (if present in your client) */
-    #ifdef CPE_USE_NOTIFY
-    if (TexPackOverlay_IsAlways(s, widget))
-        CPE_SendNotifyAction(NOTIFY_ACTION_TEXTURE_PROMPT_RESPONDED, 3);
-    else
-        CPE_SendNotifyAction(NOTIFY_ACTION_TEXTURE_PROMPT_RESPONDED, 2);
-    #endif
-
-    /* ----------------- NEW: trigger soundpack overlay ----------------- */
-#ifdef CC_BUILD_SOUNDPACK
-    /* If your server sends a separate soundpack URL, pass that instead of s->url */
-    SoundPackOverlay_Show(&s->url);
-#endif
+	if (TexPackOverlay_IsAlways(s, widget)) CPE_SendNotifyAction(NOTIFY_ACTION_TEXTURE_PROMPT_RESPONDED, 3);
+	else CPE_SendNotifyAction(NOTIFY_ACTION_TEXTURE_PROMPT_RESPONDED, 2);
 }
-
 
 static void TexPackOverlay_NoClick(void* screen, void* widget) {
 	struct TexPackOverlay* s = (struct TexPackOverlay*)screen;
@@ -2953,220 +2927,6 @@ void TexPackOverlay_Show(const cc_string* url) {
 	s->reqID = Http_AsyncGetHeaders(url, HTTP_FLAG_PRIORITY);
 	Gui_Add((struct Screen*)s, GUI_PRIORITY_TEXPACK);
 }
-/* ----------------- SoundPackOverlay (new) -----------------
-   Place this right after TexPackOverlay's VTABLE/Show block.
-   Mirrors texture UI so users get the same Yes/No/Always behaviour.
--------------------------------------------------------------*/
-static struct SoundPackOverlay {
-    Screen_Body
-    cc_bool deny, alwaysDeny, gotContent;
-    cc_uint32 contentLength;
-    cc_string url;
-    int reqID;
-    struct FontDesc textFont;
-    struct ButtonWidget btns[4];
-    struct TextWidget   lbls[4];
-    char _urlBuffer[URL_MAX_SIZE];
-} SoundPackOverlay;
-
-static struct Widget* soundpack_widgets[12];
-
-static cc_bool SoundPackOverlay_IsAlways(void* screen, void* w) {
-    struct ButtonWidget* btn = (struct ButtonWidget*)w;
-    return btn->meta.val != 0;
-}
-
-static void SoundPackOverlay_YesClick(void* screen, void* widget) {
-    struct SoundPackOverlay* s = (struct SoundPackOverlay*)screen;
-
-    /* Start download/extract flow implemented in src/SoundPack.c */
-    SoundPack_Extract(&s->url);
-
-    if (SoundPackOverlay_IsAlways(s, widget)) SoundUrls_Accept(&s->url);
-    Gui_Remove((struct Screen*)s);
-
-    /* Optional: notify server/client extension that sound prompt was accepted */
-}
-
-static void SoundPackOverlay_NoClick(void* screen, void* widget) {
-    struct SoundPackOverlay* s = (struct SoundPackOverlay*)screen;
-    s->alwaysDeny = SoundPackOverlay_IsAlways(s, widget);
-    s->deny = true;
-    Gui_Refresh((struct Screen*)s);
-}
-
-static void SoundPackOverlay_ConfirmNoClick(void* screen, void* b) {
-    struct SoundPackOverlay* s = (struct SoundPackOverlay*)screen;
-    if (s->alwaysDeny) SoundUrls_Deny(&s->url);
-    Gui_Remove((struct Screen*)s);
-}
-
-static void SoundPackOverlay_GoBackClick(void* screen, void* b) {
-    struct SoundPackOverlay* s = (struct SoundPackOverlay*)screen;
-    s->deny = false;
-    Gui_Refresh((struct Screen*)s);
-}
-
-static void SoundPackOverlay_UpdateLine2(struct SoundPackOverlay* s) {
-    static const cc_string https = String_FromConst("https://");
-    static const cc_string http  = String_FromConst("http://");
-    cc_string url = String_Empty;
-
-    if (!s->deny) {
-        url = s->url;
-        if (String_CaselessStarts(&url, &https)) url = String_UNSAFE_SubstringAt(&url, https.length);
-        if (String_CaselessStarts(&url, &http))  url = String_UNSAFE_SubstringAt(&url, http.length);
-    }
-    TextWidget_Set(&s->lbls[2], &url, &s->textFont);
-}
-
-static void SoundPackOverlay_UpdateLine3(struct SoundPackOverlay* s) {
-    cc_string contents; char contentsBuffer[STRING_SIZE];
-    float contentLengthMB;
-
-    if (s->deny) {
-        TextWidget_SetConst(&s->lbls[3], "Sure you don't want to download the sound pack?", &s->textFont);
-        return;
-    }
-    if (s->contentLength) {
-        String_InitArray(contents, contentsBuffer);
-        contentLengthMB = s->contentLength / (1024.0f * 1024.0f);
-        String_Format1(&contents, "Download size: %f3 MB", &contentLengthMB);
-        TextWidget_Set(&s->lbls[3], &contents, &s->textFont);
-    } else if (s->gotContent) {
-        TextWidget_SetConst(&s->lbls[3], "Download size: Unknown", &s->textFont);
-    } else {
-        TextWidget_SetConst(&s->lbls[3], "Download size: Determining.", &s->textFont);
-    }
-}
-
-static void SoundPackOverlay_Update(void* screen, float delta) {
-    struct SoundPackOverlay* s = (struct SoundPackOverlay*)screen;
-    struct HttpRequest item;
-    if (!Http_GetResult(s->reqID, &item)) return;
-
-    s->dirty         = true;
-    s->gotContent    = true;
-    s->contentLength = item.contentLength;
-
-    SoundPackOverlay_UpdateLine3(s);
-    HttpRequest_Free(&item);
-}
-
-static void SoundPackOverlay_ContextLost(void* screen) {
-    struct SoundPackOverlay* s = (struct SoundPackOverlay*)screen;
-    Font_Free(&s->textFont);
-    Screen_ContextLost(screen);
-}
-
-static void SoundPackOverlay_ContextRecreated(void* screen) {
-    struct SoundPackOverlay* s = (struct SoundPackOverlay*)screen;
-    struct FontDesc titleFont;
-    Screen_UpdateVb(screen);
-
-    Gui_MakeTitleFont(&titleFont);
-    Gui_MakeBodyFont(&s->textFont);
-
-    TextWidget_SetConst(&s->lbls[0], s->deny  ? "&eYou might be missing out."
-        : "Do you want to download the server's sound pack?", &titleFont);
-    TextWidget_SetConst(&s->lbls[1], !s->deny ? "Sound pack url:"
-        : "Sound packs can change in-game sounds such as step/break sounds.", &s->textFont);
-
-    SoundPackOverlay_UpdateLine2(s);
-    SoundPackOverlay_UpdateLine3(s);
-
-    ButtonWidget_SetConst(&s->btns[0], s->deny ? "I'm sure" : "Yes", &titleFont);
-    ButtonWidget_SetConst(&s->btns[1], s->deny ? "Go back"  : "No",  &titleFont);
-    s->btns[0].MenuClick = s->deny ? SoundPackOverlay_ConfirmNoClick : SoundPackOverlay_YesClick;
-    s->btns[1].MenuClick = s->deny ? SoundPackOverlay_GoBackClick    : SoundPackOverlay_NoClick;
-
-    if (!s->deny) {
-        ButtonWidget_SetConst(&s->btns[2], "Always yes", &titleFont);
-        ButtonWidget_SetConst(&s->btns[3], "Always no",  &titleFont);
-        s->btns[2].MenuClick = SoundPackOverlay_YesClick;
-        s->btns[3].MenuClick = SoundPackOverlay_NoClick;
-        s->btns[2].meta.val  = 1;
-        s->btns[3].meta.val  = 1;
-    }
-
-    s->numWidgets = s->deny ? 6 : 8;
-    Font_Free(&titleFont);
-}
-
-static void SoundPackOverlay_Layout(void* screen) {
-    struct SoundPackOverlay* s = (struct SoundPackOverlay*)screen;
-    Overlay_LayoutLabels(s->lbls);
-    Overlay_LayoutMainButtons(s->btns);
-
-    Widget_SetLocation(&s->btns[2], ANCHOR_CENTRE, ANCHOR_CENTRE, -110, 85);
-    Widget_SetLocation(&s->btns[3], ANCHOR_CENTRE, ANCHOR_CENTRE,  110, 85);
-}
-
-static void SoundPackOverlay_Init(void* screen) {
-    struct SoundPackOverlay* s = (struct SoundPackOverlay*)screen;
-    s->widgets     = soundpack_widgets;
-    s->numWidgets  = 0;
-    s->maxWidgets  = Array_Elems(soundpack_widgets);
-
-    s->contentLength = 0;
-    s->gotContent    = false;
-    s->deny          = false;
-    s->reqID         = 0; /* initialised so free/update logic is safe */
-    Overlay_AddLabels(s, s->lbls);
-
-
-    ButtonWidget_Add(s, &s->btns[0], 160, NULL);
-    ButtonWidget_Add(s, &s->btns[1], 160, NULL);
-    ButtonWidget_Add(s, &s->btns[2], 160, NULL);
-    ButtonWidget_Add(s, &s->btns[3], 160, NULL);
-
-    s->maxVertices = Screen_CalcDefaultMaxVertices(s);
-}
-
-static void SoundPackOverlay_Free(void* screen) {
-    struct SoundPackOverlay* s = (struct SoundPackOverlay*)screen;
-
-    /* There's no Http_CancelRequest / Screen_Free in this repo's headers,
-       so we avoid calling them to prevent implicit-declaration errors.
-       
-       If you want to cancel an in-progress HTTP request, implement
-       Http_CancelRequest(reqID) in the Http subsystem (preferred), or
-       keep a flag and ignore late results when the screen is freed.
-    */
-
-    /* Mark request ID as cleared so Update() will ignore any results. */
-    s->reqID = 0;
-
-    /* The GUI framework will free the screen memory; don't call Screen_Free here. */
-}
-
-
-static const struct ScreenVTABLE SoundPackOverlay_VTABLE = {
-    SoundPackOverlay_Init,    SoundPackOverlay_Update,  SoundPackOverlay_Free,
-    MenuScreen_Render2,       Screen_BuildMesh,
-    Menu_InputDown,           Screen_InputUp,     Screen_TKeyPress, Screen_TText,
-    Menu_PointerDown,         Screen_PointerUp,   Menu_PointerMove, Screen_TMouseScroll,
-    SoundPackOverlay_Layout,  SoundPackOverlay_ContextLost, SoundPackOverlay_ContextRecreated,
-    Menu_PadAxis
-};
-
-void SoundPackOverlay_Show(const cc_string* url) {
-    struct SoundPackOverlay* s = &SoundPackOverlay;
-    s->grabsInput = true;
-    s->closable   = true;
-    s->VTABLE     = &SoundPackOverlay_VTABLE;
-
-    String_InitArray(s->url, s->_urlBuffer);
-    String_Copy(&s->url, url);
-
-    /* Ask HTTP subsystem for headers so Update() can report size (same as texture prompt) */
-    s->reqID = Http_AsyncGetHeaders(url, HTTP_FLAG_PRIORITY);
-
-    /* TODO: if you want sound prompt to appear with a different priority,
-       change GUI_PRIORITY_URLWARNING -> GUI_PRIORITY_SOUNDPACK (if you add it). */
-    Gui_Add((struct Screen*)s, GUI_PRIORITY_URLWARNING);
-}
-
 
 
 /*########################################################################################################################*
