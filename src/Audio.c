@@ -54,51 +54,6 @@ void Sounds_LoadDefault(void) { }
 #else
 struct Soundboard digBoard, stepBoard;
 static RNGState sounds_rnd;
-/* --------------------
- * Per-zip custom mapping: filename (no ext) -> id
- * -------------------- */
-struct CustomSoundMap {
-    cc_string name;   /* e.g. "dig_testsound1" */
-    cc_uint16  id;    /* mapped group id, e.g. 12 */
-};
-
-struct CustomSoundMapList {
-    struct CustomSoundMap* items;
-    int count, capacity;
-};
-
-static struct CustomSoundMapList customMaps_global; /* used while extracting a zip */
-/* Custom map helpers */
-static void CustomMap_Init(struct CustomSoundMapList* list) {
-    list->items = NULL; list->count = list->capacity = 0;
-}
-static void CustomMap_Free(struct CustomSoundMapList* list) {
-    int i;
-    for (i = 0; i < list->count; i++) {
-        String_Free(&list->items[i].name);
-    }
-    Mem_Free(list->items);
-    list->items = NULL; list->count = list->capacity = 0;
-}
-static void CustomMap_Add(struct CustomSoundMapList* list, const cc_string* name, cc_uint16 id) {
-    if (list->count == list->capacity) {
-        int newCap = list->capacity ? list->capacity * 2 : 8;
-        list->items = (struct CustomSoundMap*)Mem_TryRealloc(list->items, newCap * sizeof(*list->items));
-        if (!list->items) return;
-        list->capacity = newCap;
-    }
-    list->items[list->count].name = String_InitArray(0);
-    String_CopyTo(&list->items[list->count].name, name);
-    list->items[list->count].id = id;
-    list->count++;
-}
-static int CustomMap_Find(const struct CustomSoundMapList* list, const cc_string* name) {
-    int i;
-    for (i = 0; i < list->count; i++) {
-        if (String_CaselessEquals(&list->items[i].name, name)) return i;
-    }
-    return -1;
-}
 
 #define WAV_FourCC(a, b, c, d) (((cc_uint32)a << 24) | ((cc_uint32)b << 16) | ((cc_uint32)c << 8) | (cc_uint32)d)
 #define WAV_FMT_SIZE 16
@@ -175,16 +130,8 @@ static void Soundboard_Load(struct Soundboard* board, const cc_string* boardName
 	if (!String_CaselessStarts(&name, boardName)) return;
 
 	/* Convert dig_grass1 to grass */
-/* Convert dig_grass1 to grass  OR dig_pling to pling (do not blindly chop last char) */
-name = String_UNSAFE_SubstringAt(&name, boardName->length);
-
-/* strip trailing digit ONLY if present: dig_pling  -> pling ; dig_pling1 -> pling */
-if (name.length > 0) {
-    char last = name.buffer[name.length - 1];
-    if (last >= '0' && last <= '9') {
-        name = String_UNSAFE_Substring(&name, 0, name.length - 1);
-    }
-}
+	name = String_UNSAFE_SubstringAt(&name, boardName->length);
+	name = String_UNSAFE_Substring(&name, 0, name.length - 1);
 
 	group = Soundboard_FindGroup(board, &name);
 	if (!group) {
@@ -203,41 +150,6 @@ if (name.length > 0) {
 		snd->chunk.data = NULL;
 		snd->chunk.size = 0;
 	} else { group->count++; }
-}
-/* Load the given zip entry directly into a specific group id (bypass name lookup) */
-static void Soundboard_LoadMapped(struct Soundboard* board, const cc_string* file, cc_uint16 targetGroup, struct Stream* stream) {
-    struct SoundGroup* group;
-    struct Sound* snd;
-    cc_string name = *file;
-    cc_result res;
-    int dotIndex;
-
-    Utils_UNSAFE_TrimFirstDirectory(&name);
-
-    /* remove extension */
-    dotIndex = String_LastIndexOf(&name, '.');
-    if (dotIndex >= 0) name.length = dotIndex;
-
-    if (targetGroup >= SOUND_COUNT) {
-        Chat_Add1("&cCustom sound mapping %s references invalid id %i", &name, (int)targetGroup);
-        return;
-    }
-
-    group = &board->groups[targetGroup];
-    if (group->count == Array_Elems(group->sounds)) {
-        Chat_Add1("&cCustom sound mapping %s cannot add - group full", &name);
-        return;
-    }
-
-    snd = &group->sounds[group->count];
-    res = Sound_ReadWaveData(stream, snd);
-
-    if (res) {
-        Logger_SysWarn2(res, "decoding", &name);
-        Audio_FreeChunks(&snd->chunk, 1);
-        snd->chunk.data = NULL;
-        snd->chunk.size = 0;
-    } else { group->count++; }
 }
 
 static const struct Sound* Soundboard_PickRandom(struct Soundboard* board, cc_uint8 type) {
@@ -339,140 +251,30 @@ static void Audio_PlayBlockSound(void* obj, IVec3 coords, BlockID old, BlockID n
 }
 
 static cc_bool SelectZipEntry(const cc_string* path) { return true; }
-/* Parse a simple sounds.txt stream into customMaps_global.
-   Format: lines like "dig_pling1 = 10" (# comments ignored). */
-/* Robust parsing of sounds.txt: read bytes until EOF, build temporary buffer, parse lines.
-   This reads one byte at a time to avoid relying on partial-read semantics of Stream_Read.
-   sounds.txt is expected to be tiny, so bytewise reads are acceptable. */
-static void ParseSoundsTxtStream(struct Stream* stream, struct CustomSoundMapList* maps) {
-    /* dynamic byte buffer */
-    unsigned char* buf = NULL;
-    int bufLen = 0, bufCap = 0;
-    cc_result res;
-    cc_uint8 ch;
-
-    for (;;) {
-        res = Stream_Read(stream, &ch, 1);
-        if (res) {
-            if (res == ERR_END_OF_STREAM) break;
-            Logger_SysWarn2(res, "reading sounds.txt");
-            break;
-        }
-        /* append ch */
-        if (bufLen + 1 > bufCap) {
-            int newCap = bufCap ? bufCap * 2 : 256;
-            unsigned char* ptr = (unsigned char*)Mem_TryRealloc(buf, newCap);
-            if (!ptr) {
-                Mem_Free(buf);
-                return;
-            }
-            buf = ptr; bufCap = newCap;
-        }
-        buf[bufLen++] = ch;
-    }
-
-    if (!bufLen) { Mem_Free(buf); return; }
-
-    /* parse lines: operate on buf[0..bufLen-1] */
-    int i = 0;
-    while (i < bufLen) {
-        int j = i;
-        /* find end of line */
-        while (j < bufLen && buf[j] != '\n' && buf[j] != '\r') j++;
-        if (j > i) {
-            /* create cc_string for the line */
-            /* NOTE: if your repo lacks String_UNSAFE_Create, see compile notes below. */
-            cc_string line = String_UNSAFE_Create((char*)&buf[i], j - i);
-            Utils_UNSAFE_Trim(&line);
-            if (line.length && line.buffer[0] != '#' && line.buffer[0] != '/') {
-                int eq = String_IndexOf(&line, '=');
-                if (eq >= 0) {
-                    cc_string key = String_UNSAFE_Substring(&line, 0, eq);
-                    cc_string val = String_UNSAFE_SubstringAt(&line, eq + 1);
-                    Utils_UNSAFE_Trim(&key); Utils_UNSAFE_Trim(&val);
-                    if (key.length && val.length) {
-                        int id = String_ToInt(&val);
-                        if (id > 0 && id < 0x10000) CustomMap_Add(maps, &key, (cc_uint16)id);
-                    }
-                    String_FreeArray(&key);
-                    String_FreeArray(&val);
-                }
-            }
-            String_FreeArray(&line);
-        }
-        /* skip newline(s) */
-        while (j < bufLen && (buf[j] == '\n' || buf[j] == '\r')) j++;
-        i = j;
-    }
-
-    Mem_Free(buf);
-}
-
-
 static cc_result ProcessZipEntry(const cc_string* path, struct Stream* stream, struct ZipEntry* source) {
-    static const cc_string dig  = String_FromConst("dig_");
-    static const cc_string step = String_FromConst("step_");
-
-    /* Determine filename without directory */
-    cc_string name = *path;
-    Utils_UNSAFE_TrimFirstDirectory(&name);
-    /* get basename without extension */
-    int dotIndex = String_LastIndexOf(&name, '.');
-    if (dotIndex >= 0) name.length = dotIndex;
-
-    /* If this is the sounds mapping file (sounds.txt), parse it first */
-    if (String_CaselessEqualsConst(&name, "sounds") || String_CaselessEqualsConst(&name, "sounds.txt")) {
-        ParseSoundsTxtStream(stream, &customMaps_global);
-        return 0;
-    }
-
-    /* If custom map contains this filename, use mapped id */
-    int idx = CustomMap_Find(&customMaps_global, &name);
-    if (idx >= 0) {
-        cc_uint16 mapped = customMaps_global.items[idx].id;
-        if (mapped < SOUND_COUNT) {
-            /* pick which board by prefix on original path */
-            if (String_CaselessStarts(path, &dig)) {
-                Soundboard_LoadMapped(&digBoard, path, mapped, stream);
-            } else if (String_CaselessStarts(path, &step)) {
-                Soundboard_LoadMapped(&stepBoard, path, mapped, stream);
-            } else {
-                Chat_Add1("&cCustom sound file %s not prefixed with dig_/step_", path);
-            }
-        } else {
-            Chat_Add1("&cCustom sound mapping for %s uses id %i (out of range)", path, mapped);
-        }
-        return 0;
-    }
-
-    /* Fallback: old behaviour (improved trimming is already in Soundboard_Load) */
-    Soundboard_Load(&digBoard,  &dig,  path, stream);
-    Soundboard_Load(&stepBoard, &step, path, stream);
-    return 0;
+	static const cc_string dig  = String_FromConst("dig_");
+	static const cc_string step = String_FromConst("step_");
+	
+	Soundboard_Load(&digBoard,  &dig,  path, stream);
+	Soundboard_Load(&stepBoard, &step, path, stream);
+	return 0;
 }
-
 
 static cc_result Sounds_ExtractZip(const cc_string* path) {
 	struct ZipEntry entries[128];
 	struct Stream stream;
 	cc_result res;
 
-res = Stream_OpenFile(&stream, path);
-if (res) { Logger_SysWarn2(res, "opening", path); return res; }
+	res = Stream_OpenFile(&stream, path);
+	if (res) { Logger_SysWarn2(res, "opening", path); return res; }
 
-CustomMap_Init(&customMaps_global);
+	res = Zip_Extract(&stream, SelectZipEntry, ProcessZipEntry,
+						entries, Array_Elems(entries));
+	if (res) Logger_SysWarn2(res, "extracting", path);
 
-res = Zip_Extract(&stream, SelectZipEntry, ProcessZipEntry,
-                    entries, Array_Elems(entries));
-if (res) Logger_SysWarn2(res, "extracting", path);
-
-/* free custom map state for this zip */
-CustomMap_Free(&customMaps_global);
-
-/* No point logging error for closing readonly file */
-(void)stream.Close(&stream);
-return res;
-
+	/* No point logging error for closing readonly file */
+	(void)stream.Close(&stream);
+	return res;
 }
 
 void Sounds_LoadDefault(void) {
