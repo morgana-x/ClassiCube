@@ -23,10 +23,12 @@ int Audio_SoundsVolume, Audio_MusicVolume;
 const char* const Sound_Names[SOUND_COUNT] = {
     "none", "wood", "gravel", "grass", "stone",
     "metal", "glass", "cloth", "sand", "snow",
-    /* custom groups we added */
-    "pling",               /* SOUND_PLING */
-    "challenge_complete",  /* SOUND_CHALLENGE_COMPLETE */
+    "pling", "challenge_complete",
+    "anvil_use", "chest_open", "chest_closed", "click",
+    "door_open", "door_close", "explode", "levelup",
+    "pickup", "pop", "portal"
 };
+
 
 
 const cc_string Sounds_ZipPathMC = String_FromConst("audio/default.zip");

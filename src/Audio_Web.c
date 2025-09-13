@@ -123,6 +123,45 @@ static const struct SoundID { int group; const char* name; } sounds_list[] =
 	{ SOUND_SNOW,   "dig_snow1"    }, { SOUND_SNOW,   "dig_snow2"    }, { SOUND_SNOW,   "dig_snow3"    }, { SOUND_SNOW,   "dig_snow4"    },
 	{ SOUND_STONE,  "dig_stone1"   }, { SOUND_STONE,  "dig_stone2"   }, { SOUND_STONE,  "dig_stone3"   }, { SOUND_STONE,  "dig_stone4"   },
 	{ SOUND_WOOD,   "dig_wood1"    }, { SOUND_WOOD,   "dig_wood2"    }, { SOUND_WOOD,   "dig_wood3"    }, { SOUND_WOOD,   "dig_wood4"    },
+    { SOUND_PLING, "step_pling" },
+    { SOUND_PLING, "dig_pling" },
+
+    { SOUND_CHALLENGE_COMPLETE, "step_challenge_complete" },
+    { SOUND_CHALLENGE_COMPLETE, "dig_challenge_complete" },
+	    /* ----- Custom sounds ----- */
+    { SOUND_ANVIL_USE, "step_anvil_use" },
+    { SOUND_ANVIL_USE, "dig_anvil_use" },
+
+    { SOUND_CHEST_CLOSED, "step_chestclosed" },
+    { SOUND_CHEST_CLOSED, "dig_chestclosed" },
+
+    { SOUND_CHEST_OPEN, "step_chestopen" },
+    { SOUND_CHEST_OPEN, "dig_chestopen" },
+
+    { SOUND_CLICK, "step_click" },
+    { SOUND_CLICK, "dig_click" },
+
+    { SOUND_DOOR_CLOSE, "step_door_close" },
+    { SOUND_DOOR_CLOSE, "dig_door_close" },
+
+    { SOUND_DOOR_OPEN, "step_door_open" },
+    { SOUND_DOOR_OPEN, "dig_door_open" },
+
+    { SOUND_EXPLODE, "step_explode1" }, /* from explode11.wav */
+    { SOUND_EXPLODE, "dig_explode1" },
+
+    { SOUND_LEVELUP, "step_levelup" },
+    { SOUND_LEVELUP, "dig_levelup" },
+
+    { SOUND_PICKUP, "step_pickup1" },   /* from pickup11.wav */
+    { SOUND_PICKUP, "dig_pickup1" },
+
+    { SOUND_POP, "step_pop" },
+    { SOUND_POP, "dig_pop" },
+
+    { SOUND_PORTAL, "step_portal" },
+    { SOUND_PORTAL, "dig_portal" },
+
 };
 
 /* TODO this is a terrible solution */

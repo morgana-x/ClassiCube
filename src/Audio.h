@@ -127,11 +127,23 @@ enum SoundType {
     SOUND_NONE,  SOUND_WOOD,  SOUND_GRAVEL, SOUND_GRASS, 
     SOUND_STONE, SOUND_METAL, SOUND_GLASS,  SOUND_CLOTH, 
     SOUND_SAND,  SOUND_SNOW,
-    /* Custom groups added for plugin sounds */
-    SOUND_PLING,               /* id -> 10 */
-    SOUND_CHALLENGE_COMPLETE,  /* id -> 11 */
-    SOUND_COUNT
+    /* Custom groups */
+    SOUND_PLING,
+    SOUND_CHALLENGE_COMPLETE,
+    SOUND_ANVIL_USE,
+    SOUND_CHEST_OPEN,
+    SOUND_CHEST_CLOSED,
+    SOUND_CLICK,
+    SOUND_DOOR_OPEN,
+    SOUND_DOOR_CLOSE,
+    SOUND_EXPLODE,
+    SOUND_LEVELUP,
+    SOUND_PICKUP,
+    SOUND_POP,
+    SOUND_PORTAL,
+    SOUND_COUNT   // must be last
 };
+
 
 extern const char* const Sound_Names[SOUND_COUNT];
 
