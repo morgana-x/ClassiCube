@@ -162,8 +162,8 @@ static const struct SoundID { int group; const char* name; } sounds_list[] =
     { SOUND_PORTAL, "step_portal" },
     { SOUND_PORTAL, "dig_portal" },
 
-    { SOUND_HIT, "dig_hit" },
     { SOUND_HIT, "step_hit" },
+    { SOUND_HIT, "dig_hit" },
 
 };
 

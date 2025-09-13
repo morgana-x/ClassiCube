@@ -141,6 +141,7 @@ enum SoundType {
     SOUND_PICKUP,
     SOUND_POP,
     SOUND_PORTAL,
+	SOUND_HIT,
     SOUND_COUNT   // must be last
 };
 
