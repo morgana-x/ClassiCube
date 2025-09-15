@@ -10,6 +10,7 @@
 #include "Utils.h"
 #include "Options.h"
 #include "Drawer2D.h"
+#include "Audio.h"
  
 static char status[5][STRING_SIZE];
 static char bottom[3][STRING_SIZE];
@@ -221,6 +222,9 @@ void Chat_AddOf(const cc_string* text, int msgType) {
 		Chat_GetLogTime(Chat_Log.count) = Game.Time;
 		AppendChatLog(&str);
 		StringsBuffer_Add(&Chat_Log, &str);
+		/* play chat notification sound for normal chat messages */
+Audio_PlayCustom2D(0, 15, 255, 100);
+
 	} else if (msgType >= MSG_TYPE_STATUS_1 && msgType <= MSG_TYPE_STATUS_3) {
 		/* Status[0] is for texture pack downloading message */
 		/* Status[1] is for reduced performance mode message */
