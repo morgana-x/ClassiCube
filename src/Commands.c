@@ -791,6 +791,61 @@ static struct ChatCommand BlockEditCommand = {
 		"&eLists the editable block properties",
 	}
 };
+/* ---------------------------
+   /client sound <channel> <id> <volume> <rate>
+   /client sound3d <channel> <id> <volume> <rate> <x> <y> <z>
+   --------------------------- */
+
+static void SoundCommand_Execute(const cc_string* args, int argsCount) {
+    int chan = 0, id = 0, vol = 255, rate = 100;
+    /* Silent on bad usage or parse errors */
+    if (argsCount < 4) return;
+    if (!Convert_ParseInt(&args[0], &chan) || !Convert_ParseInt(&args[1], &id) ||
+        !Convert_ParseInt(&args[2], &vol)  || !Convert_ParseInt(&args[3], &rate)) {
+        return;
+    }
+
+    /* Call real audio function (non-3D custom sound) */
+    Audio_PlayCustom2D((cc_uint8)chan, (cc_uint16)id, (cc_uint32)vol, (cc_uint8)rate);
+}
+
+
+
+static struct ChatCommand SoundCommand = {
+	"Sound", SoundCommand_Execute,
+	0,
+	{
+		"&a/client sound <channel> <id> <volume> <rate>",
+		"&ePlays the given extension sound locally (packet id 60).",
+	}
+};
+
+static void Sound3DCommand_Execute(const cc_string* args, int argsCount) {
+    int chan = 0, id = 0, vol = 255, rate = 100, x = 0, y = 0, z = 0;
+    /* Silent on bad usage or parse errors */
+    if (argsCount < 7) return;
+    if (!Convert_ParseInt(&args[0], &chan) || !Convert_ParseInt(&args[1], &id) ||
+        !Convert_ParseInt(&args[2], &vol)  || !Convert_ParseInt(&args[3], &rate) ||
+        !Convert_ParseInt(&args[4], &x)    || !Convert_ParseInt(&args[5], &y)   ||
+        !Convert_ParseInt(&args[6], &z)) {
+        return;
+    }
+
+    /* Call real 3D audio function (falls back to 2D if backend doesn't support 3D) */
+    Audio_PlayCustom3D((cc_uint8)chan, (cc_uint16)id, (cc_uint32)vol, (cc_uint8)rate,
+                       (cc_uint16)x, (cc_uint16)y, (cc_uint16)z);
+}
+
+
+
+static struct ChatCommand Sound3DCommand = {
+	"Sound3D", Sound3DCommand_Execute,
+	0,
+	{
+		"&a/client sound3d <channel> <id> <volume> <rate> <x> <y> <z>",
+		"&ePlays the given extension 3D sound locally (packet id 61).",
+	}
+};
 
 
 /*########################################################################################################################*
@@ -808,6 +863,8 @@ static void OnInit(void) {
 	Commands_Register(&MotdCommand);
 	Commands_Register(&PlaceCommand);
 	Commands_Register(&BlockEditCommand);
+	    Commands_Register(&SoundCommand);
+    Commands_Register(&Sound3DCommand);
 	Commands_Register(&CuboidCommand);
 	Commands_Register(&ReplaceCommand);
 }
