@@ -985,25 +985,17 @@ static BitmapCol LBackend_TableRowColor(struct LTable* w, int row) {
 	cc_bool featured         = entry && entry->featured;
 /* Blue3dxApproved special highlight (client-side): make this server cyan */
 if (entry && entry->hash.length) {
-    /* list of Blue3dxApproved hashes */
-    static const char* blue3dx_hashes[] = {
-        "53da0a8649f6ca75811dd65347d818af", /* your first server */
-        "5b2f8e8fe25971145a78db5490f514f1", /* new one */
-        "c895289f52ec194a2b823bae807e4bdc", /* new one */
-        NULL
-    };
-
-    for (int i = 0; blue3dx_hashes[i]; i++) {
-        if (String_CaselessEqualsConst(&entry->hash, blue3dx_hashes[i])) {
-            /* Cyan colors: normal and selected */
-BitmapCol blueSelColor  = BitmapColor_RGB(0, 120, 170);   /* selected cyan */
-BitmapCol blueColor     = BitmapColor_RGB(0, 150, 200);   /* darker cyan for normal */
-   /* normal cyan (Blue3dxApproved) */
-            return selected ? blueSelColor : blueColor;
-        }
+    /* compare hash string to the Blue3dx play-id hash (lowercase hex) */
+    if (String_CaselessEqualsConst(&entry->hash, "53da0a8649f6ca75811dd65347d818af")) {
+        /* Cyan colors: normal and selected */
+        BitmapCol blueSelColor  = BitmapColor_RGB(0, 120, 170);   /* selected cyan */
+        BitmapCol blueColor     = BitmapColor_RGB(0, 183, 235);   /* normal cyan (Blue3dxApproved) */
+        return selected ? blueSelColor : blueColor;
     }
 }
 
+	return LTable_RowColor(row, selected, featured);
+}
 
 /* Draws background behind each row in the table */
 static void LTable_DrawRowsBackground(struct LTable* w) {
