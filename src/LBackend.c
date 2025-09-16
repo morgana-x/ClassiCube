@@ -983,6 +983,16 @@ static BitmapCol LBackend_TableRowColor(struct LTable* w, int row) {
 	struct ServerInfo* entry = row < w->rowsCount ? LTable_Get(row) : NULL;
 	cc_bool selected         = entry && String_Equals(&entry->hash, w->selectedHash);
 	cc_bool featured         = entry && entry->featured;
+/* Blue3dxApproved special highlight (client-side): make this server cyan */
+if (entry && entry->hash.length) {
+    /* compare hash string to the Blue3dx play-id hash (lowercase hex) */
+    if (String_CaselessEqualsConst(&entry->hash, "53da0a8649f6ca75811dd65347d818af")) {
+        /* Cyan colors: normal and selected */
+        BitmapCol blueSelColor  = BitmapColor_RGB(0, 120, 170);   /* selected cyan */
+        BitmapCol blueColor     = BitmapColor_RGB(0, 183, 235);   /* normal cyan (Blue3dxApproved) */
+        return selected ? blueSelColor : blueColor;
+    }
+}
 
 	return LTable_RowColor(row, selected, featured);
 }
