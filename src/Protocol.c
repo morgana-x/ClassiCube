@@ -60,6 +60,8 @@ struct CpeExt {
 };
 cc_bool cpe_needD3Fix;
 static int cpe_serverExtensionsCount, cpe_pingTicks;
+/* saved volume used by CPE stop workaround (-1 = no saved volume) */
+static int cpe_prevSoundsVolume = -1;
 
 static struct CpeExt 
 	clickDist_Ext       = { "ClickDistance", 1 },
@@ -1626,6 +1628,13 @@ static void CPE_ToggleBlockList(cc_uint8* data) {
 
 static void CPE_PlaySoundBase(cc_uint8 channel, cc_uint32 volume, cc_uint8 rate, cc_uint16 id)
 {
+
+/* If a stop previously saved the client volume, restore it now. */
+if (cpe_prevSoundsVolume != -1) {
+    Audio_SoundsVolume = (cc_uint32)cpe_prevSoundsVolume;
+    cpe_prevSoundsVolume = -1;
+}
+
 	// Skip a sound that's played at zero volume or when the sound is zero
 	if (!volume) 
 		return;
@@ -1656,6 +1665,24 @@ static void CPE_PlaySoundBase(cc_uint8 channel, cc_uint32 volume, cc_uint8 rate,
 		// Music and other categories could be implemented in future
 	}
 }
+
+/* Best-effort stop handler: mute global sounds until next play packet restores volume.
+   NOTE: per-sound stop requires adding stop primitives in the Sounds/audio subsystem. */
+static void CPE_StopSound(cc_uint8* data) {
+    /* data[0] is channel (0=dig,1=step, 255 = stop all in some specs) */
+    cc_uint8 channel = data[0];
+
+    /* If we haven't already saved the current volume, store it and mute */
+    if (cpe_prevSoundsVolume == -1) {
+        cpe_prevSoundsVolume = (int)Audio_SoundsVolume;
+    }
+    Audio_SoundsVolume = 0;
+
+    /* We intentionally keep it simple: the next PlaySound will restore the volume.
+       If you want immediate permanent restore logic, or per-channel stop, update the
+       Sounds backend (preferred long-term) and call it from here. */
+}
+
 
 static void CPE_PlaySound(cc_uint8* data)
 {
@@ -1742,8 +1769,10 @@ static void CPE_Reset(void) {
 	Net_Set(OPCODE_CINEMATIC_GUI, CPE_CinematicGui, 10);
 	Net_Set(OPCODE_TOGGLE_BLOCK_LIST, CPE_ToggleBlockList, 2);
 
-	Net_Set(OPCODE_SOUND_PLAY, CPE_PlaySound, 6)
-	Net_Set(OPCODE_SOUND_PLAY3D, CPE_PlaySound3D, 12)
+Net_Set(OPCODE_SOUND_PLAY, CPE_PlaySound, 6);
+Net_Set(OPCODE_SOUND_PLAY3D, CPE_PlaySound3D, 12);
+Net_Set(OPCODE_SOUND_STOP, CPE_StopSound, 1);
+
 }
 
 static cc_uint8* CPE_Tick(cc_uint8* data) {
