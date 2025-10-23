@@ -26,7 +26,7 @@ const char* const Sound_Names[SOUND_COUNT] = {
     "pling", "challenge_complete",
     "anvil_use", "chest_open", "chest_closed", "click",
     "door_open", "door_close", "explode", "levelup",
-    "pickup", "pop", "portal", "hit"
+    "pickup", "pop", "portal", "hit", "otherside", "othersideshort", "bestpartotherside"
 };
 
 

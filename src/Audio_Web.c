@@ -165,6 +165,14 @@ static const struct SoundID { int group; const char* name; } sounds_list[] =
     { SOUND_HIT, "step_hit" },
     { SOUND_HIT, "dig_hit" },
 
+    { SOUND_OTHERSIDE, "step_otherside" },
+    { SOUND_OTHERSIDE, "dig_otherside" },
+	
+	{ SOUND_OTHERSIDESHORT, "step_othersideshort" },
+    { SOUND_OTHERSIDE, "dig_othersideshort" },
+	
+	{ SOUND_BESTPARTOTHERSIDE, "step_bestpartotherside" },
+    { SOUND_BESTPARTOTHERSIDE, "dig_bestpartotherside" },
 };
 
 /* TODO this is a terrible solution */
