@@ -830,6 +830,8 @@ static void Classic_Reset(void) {
 	Net_Set(OPCODE_MESSAGE, Classic_Message, 66);
 	Net_Set(OPCODE_KICK, Classic_Kick, 65);
 	Net_Set(OPCODE_SET_PERMISSION, Classic_SetPermission, 2);
+	Net_Set(OPCODE_SOUND_STOP, CPE_StopSound, 2);
+
 }
 
 static cc_uint8* Classic_Tick(cc_uint8* data) {
@@ -1669,19 +1671,22 @@ if (cpe_prevSoundsVolume != -1) {
 /* Best-effort stop handler: mute global sounds until next play packet restores volume.
    NOTE: per-sound stop requires adding stop primitives in the Sounds/audio subsystem. */
 static void CPE_StopSound(cc_uint8* data) {
-    /* data[0] is channel (0=dig,1=step, 255 = stop all in some specs) */
     cc_uint8 channel = data[0];
 
-    /* If we haven't already saved the current volume, store it and mute */
+    /* If we haven’t saved the current volume, do so */
     if (cpe_prevSoundsVolume == -1) {
         cpe_prevSoundsVolume = (int)Audio_SoundsVolume;
     }
-    Audio_SoundsVolume = 0;
 
-    /* We intentionally keep it simple: the next PlaySound will restore the volume.
-       If you want immediate permanent restore logic, or per-channel stop, update the
-       Sounds backend (preferred long-term) and call it from here. */
+    /* Stop logic */
+    if (channel == 255) {
+        Audio_SoundsVolume = 0; // Stop all
+    } else {
+        // TODO: implement per-channel stop if you want more granularity
+        Audio_SoundsVolume = 0;
+    }
 }
+
 
 
 static void CPE_PlaySound(cc_uint8* data)
