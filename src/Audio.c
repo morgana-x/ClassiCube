@@ -21,9 +21,15 @@
 int Audio_SoundsVolume, Audio_MusicVolume;
 
 const char* const Sound_Names[SOUND_COUNT] = {
-	"none", "wood", "gravel", "grass", "stone",
-	"metal", "glass", "cloth", "sand", "snow",
+    "none", "wood", "gravel", "grass", "stone",
+    "metal", "glass", "cloth", "sand", "snow",
+    "pling", "challenge_complete",
+    "anvil_use", "chest_open", "chest_closed", "click",
+    "door_open", "door_close", "explode", "levelup",
+    "pickup", "pop", "portal", "hit", "otherside", "othersideshort", "bestpartotherside"
 };
+
+
 
 const cc_string Sounds_ZipPathMC = String_FromConst("audio/default.zip");
 const cc_string Sounds_ZipPathCC = String_FromConst("audio/classicube.zip");
@@ -186,7 +192,7 @@ static void Sounds_Play(cc_uint8 type, struct Soundboard* board) {
 	Sounds_PlayAdvanced(type, board, volume, rate);
 }
 
-void Sounds_PlayAdvanced(cc_uint8 type, struct Soundboard* board, cc_uint32 volume, cc_uint32 rate) {
+void Sounds_PlayAdvanced(cc_uint8 type, struct Soundboard* board, cc_uint32 volume, cc_int32 rate) {
 
 	const struct Sound* snd;
 	struct AudioData data;
@@ -204,6 +210,36 @@ void Sounds_PlayAdvanced(cc_uint8 type, struct Soundboard* board, cc_uint32 volu
 
 	res = AudioPool_Play(&data);
 	if (res) Sounds_Fail(res);
+}
+/* ---------------------------------------------------------------------------
+ * Helpers used by CPE / Protocol.c to play arbitrary sound IDs
+ * --------------------------------------------------------------------------*/
+void Audio_PlayCustom2D(cc_uint8 channel, cc_uint16 id, cc_uint32 volume, cc_uint8 rate) {
+    /* Skip if volume is zero or sounds disabled */
+    if (!volume) return;
+    if (!Audio_SoundsVolume) return;
+
+    /* Avoid out-of-range IDs for step/dig channels */
+    if (channel <= 1 && id >= SOUND_COUNT) return;
+
+    /* Calculate scaled volume (plugin uses 0-255, where 255 means "full") */
+    cc_uint32 volume_calculated = (volume == 255) ? Audio_SoundsVolume :
+        (cc_uint32)((float)Audio_SoundsVolume * (float)volume / 255.0f);
+
+    /* Route to appropriate board */
+    if (channel == 0) { /* dig */
+        Sounds_PlayAdvanced((cc_uint8)id, &digBoard, volume_calculated, rate);
+    } else if (channel == 1) { /* step */
+        Sounds_PlayAdvanced((cc_uint8)id, &stepBoard, volume_calculated, rate);
+    }
+}
+
+void Audio_PlayCustom3D(cc_uint8 channel, cc_uint16 id, cc_uint32 volume, cc_uint8 rate,
+                        cc_uint16 pos_x, cc_uint16 pos_y, cc_uint16 pos_z) {
+    /* 3D audio not implemented uniformly across platforms; fallback to 2D */
+    /* You can extend this to do true 3D panning if you have a 3D backend. */
+    (void)pos_x; (void)pos_y; (void)pos_z;
+    Audio_PlayCustom2D(channel, id, volume, rate);
 }
 
 static void Audio_PlayBlockSound(void* obj, IVec3 coords, BlockID old, BlockID now) {
@@ -543,3 +579,4 @@ struct IGameComponent Audio_Component = {
 	OnInit, /* Init  */
 	OnFree  /* Free  */
 };
+

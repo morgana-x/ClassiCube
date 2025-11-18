@@ -9,6 +9,7 @@ CC_BEGIN_HEADER
 struct IGameComponent;
 extern struct IGameComponent Audio_Component; 
 struct AudioContext;
+struct Soundboard;
 
 #ifdef CC_BUILD_WEBAUDIO
 	#define DEFAULT_SOUNDS_VOLUME   0
@@ -47,6 +48,10 @@ extern const cc_string Sounds_ZipPathMC;
 extern const cc_string Sounds_ZipPathCC;
 
 void Sounds_PlayAdvanced(cc_uint8 type, struct Soundboard* board, cc_uint32 volume, cc_int32 rate);
+/* Ensure these are declared so Protocol.c can call them */
+void Audio_PlayCustom2D(cc_uint8 channel, cc_uint16 id, cc_uint32 volume, cc_uint8 rate);
+void Audio_PlayCustom3D(cc_uint8 channel, cc_uint16 id, cc_uint32 volume, cc_uint8 rate,
+                        cc_uint16 pos_x, cc_uint16 pos_y, cc_uint16 pos_z);
 
 void Audio_SetMusic(int volume);
 void Audio_SetSounds(int volume);
@@ -119,10 +124,31 @@ cc_result SoundContext_PollBusy(struct AudioContext* ctx, cc_bool* isBusy);
 *---------------------------------------------------------Sounds---------------------------------------------------------*
 *#########################################################################################################################*/
 enum SoundType {
-	SOUND_NONE,  SOUND_WOOD,  SOUND_GRAVEL, SOUND_GRASS, 
-	SOUND_STONE, SOUND_METAL, SOUND_GLASS,  SOUND_CLOTH, 
-	SOUND_SAND,  SOUND_SNOW,  SOUND_COUNT
+    SOUND_NONE,  SOUND_WOOD,  SOUND_GRAVEL, SOUND_GRASS, 
+    SOUND_STONE, SOUND_METAL, SOUND_GLASS,  SOUND_CLOTH, 
+    SOUND_SAND,  SOUND_SNOW,
+    /* Custom groups */
+    SOUND_PLING,
+    SOUND_CHALLENGE_COMPLETE,
+    SOUND_ANVIL_USE,
+    SOUND_CHEST_OPEN,
+    SOUND_CHEST_CLOSED,
+    SOUND_CLICK,
+    SOUND_DOOR_OPEN,
+    SOUND_DOOR_CLOSE,
+    SOUND_EXPLODE,
+    SOUND_LEVELUP,
+    SOUND_PICKUP,
+    SOUND_POP,
+    SOUND_PORTAL,
+	SOUND_HIT,
+	SOUND_OTHERSIDE,
+	SOUND_OTHERSIDESHORT,
+	SOUND_BESTPARTOTHERSIDE,
+    SOUND_COUNT   // must be last
 };
+
+
 extern const char* const Sound_Names[SOUND_COUNT];
 
 #define AUDIO_MAX_SOUNDS 10
@@ -141,3 +167,4 @@ void Sounds_LoadDefault(void);
 
 CC_END_HEADER
 #endif
+

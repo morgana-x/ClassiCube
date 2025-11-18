@@ -35,10 +35,14 @@
 #include "Options.h"
 #include "Screens.h"
 #include "Audio.h"
-/* Forward-declare helpers used by CPE / plugin sound code */
-void Audio_PlayCustom2D(cc_uint8 channel, cc_uint16 id, cc_uint32 volume, cc_uint8 rate);
-void Audio_PlayCustom3D(cc_uint8 channel, cc_uint16 id, cc_uint32 volume, cc_uint8 rate,
-                        cc_uint16 pos_x, cc_uint16 pos_y, cc_uint16 pos_z);
+/* -----------------------------------------------------------------------
+   Custom audio function prototypes
+   Declared here so Protocol.c can call custom playback functions.
+   Adjust types if Audio implementations differ.
+   ----------------------------------------------------------------------- */
+extern void Audio_PlayCustom2D(cc_uint8 channel, cc_uint16 id, cc_uint8 volume, cc_uint8 rate);
+extern void Audio_PlayCustom3D(cc_uint8 channel, cc_uint16 id, cc_uint32 volume, cc_uint8 rate,
+                               cc_uint16 x, cc_uint16 y, cc_uint16 z);
 
 struct _ProtocolData Protocol;
 
@@ -1657,42 +1661,57 @@ static void CPE_PlaySoundBase(cc_uint8 channel, cc_uint32 volume, cc_uint8 rate,
 	}
 }
 
+/* Replace existing CPE_PlaySound(...) with this */
 static void CPE_PlaySound(cc_uint8* data)
 {
-	cc_uint8 channel = data[0]; // 0 = dig sounds, 1 = step sounds
-	cc_uint8 volume = data[1]; // 0 - 255
-	cc_uint8 rate = data[2]; // 100 = default
-	cc_uint16 id = Stream_GetU16_BE(data + 3);
-	
-	CPE_PlaySoundBase(channel, volume , rate, id);
+    cc_uint8 channel = data[0]; // 0 = dig sounds, 1 = step sounds
+    cc_uint8 volume  = data[1]; // 0 - 255
+    cc_uint8 rate    = data[2]; // 100 = default
+    cc_uint16 id     = Stream_GetU16_BE(data + 3);
+
+    /* Route custom IDs (>=100) to custom 2D playback, otherwise keep CPE base */
+    if (id >= 100) {
+        Audio_PlayCustom2D(channel, id, volume, rate);
+    } else {
+        CPE_PlaySoundBase(channel, volume, rate, id);
+    }
 }
 
+
+/* Replace existing CPE_PlaySound3D(...) with this */
 static void CPE_PlaySound3D(cc_uint8* data)
 {
-	cc_uint8 channel = data[0]; // 0 = dig sounds, 1 = step sounds
-	cc_uint8 volume = data[1]; // 0 - 255
-	cc_uint8 rate = data[2]; // 100 = default
-	cc_uint16 id = Stream_GetU16_BE(data + 3);
+    cc_uint8 channel = data[0]; // 0 = dig sounds, 1 = step sounds
+    cc_uint8 volume  = data[1]; // 0 - 255
+    cc_uint8 rate    = data[2]; // 100 = default
+    cc_uint16 id     = Stream_GetU16_BE(data + 3);
 
-	cc_uint16 pos_x = Stream_GetU16_BE(data + 5);
-	cc_uint16 pos_y = Stream_GetU16_BE(data + 7);
-	cc_uint16 pos_z = Stream_GetU16_BE(data + 9);
+    cc_uint16 pos_x = Stream_GetU16_BE(data + 5);
+    cc_uint16 pos_y = Stream_GetU16_BE(data + 7);
+    cc_uint16 pos_z = Stream_GetU16_BE(data + 9);
 
-	if (!volume) return; // We'll just add these checks here as well just to avoid expensive distance calculation
-	if (!Audio_SoundsVolume) return;
+    if (!volume) return; /* avoid unnecessary work */
+    if (!Audio_SoundsVolume) return;
 
-	struct Entity* e = &Entities.CurPlayer->Base;
-	cc_int32 dx = (e->Position.x - pos_x);
-	cc_int32 dy = (e->Position.y - pos_y);
-	cc_int32 dz = (e->Position.z - pos_z);
-	cc_uint32 distance= ((dx * dx) + (dy * dy) + (dz * dz));
+    struct Entity* e = &Entities.CurPlayer->Base;
+    cc_int32 dx = (e->Position.x - pos_x);
+    cc_int32 dy = (e->Position.y - pos_y);
+    cc_int32 dz = (e->Position.z - pos_z);
+    cc_uint32 distance = ((dx * dx) + (dy * dy) + (dz * dz));
 
-	if (distance >= 65025) return;
+    if (distance >= 65025) return;
 
-	cc_uint32 volume_calculated = distance == 0 ? 255 : ((volume * volume) / distance);
-	if (volume_calculated > 255) volume_calculated = 255;
-	CPE_PlaySoundBase(channel, volume_calculated, rate, id);
+    cc_uint32 volume_calculated = distance == 0 ? 255 : ((volume * volume) / distance);
+    if (volume_calculated > 255) volume_calculated = 255;
+
+    /* Route custom IDs (>=100) to custom 3D playback, otherwise keep CPE base */
+    if (id >= 100) {
+        Audio_PlayCustom3D(channel, id, volume_calculated, rate, pos_x, pos_y, pos_z);
+    } else {
+        CPE_PlaySoundBase(channel, volume_calculated, rate, id);
+    }
 }
+
 
 
 
